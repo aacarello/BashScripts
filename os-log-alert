@@ -6,46 +6,43 @@ set -o nounset          # -u  Disallow expansion of unset variables
 set -o pipefail         # -p  Use last non-zero exit code in a pipeline
 set -o errtrace         # -E  Make sure any error trap is inherited
 
-
+# Original script from:
 # https://www.2daygeek.com/linux-bash-script-to-monitor-messages-log-warning-error-critical-send-email/
+
+# To automate this. It will run everyday at 7’o clock.
 # crontab -e
 # 0 7 * * * /bin/bash /opt/scripts/os-log-alert.sh
 
 
-#Set the variable which equal to zero
+me="$(basename "$(test -L "$0" && readlink "$0" || echo "$0")")"    # Saca solo el nombre del script
 
-prev_count=0
+count=$(grep -i "$(date --date='yesterday' '+%b %e')" /var/log/syslog.1 | grep -Ewic 'warning|error|critical')    # Cantidad de alertas
 
-count=$(grep -i "`date --date='yesterday' '+%b %e'`" /var/log/messages | egrep -wi 'warning|error|critical' | wc -l)
+if [[ "$count" -gt 0 ]] ; then
 
-if [ "$prev_count" -lt "$count" ] ; then
+  # This is a temp file, which is created to store the email message.
+  trap 'rm -f "$MESSAGE"' EXIT
+  MESSAGE=$(mktemp -t ci-"$(date +%Y-%m-%d-%H-%M-%S)"-XXXXXXXXXX)
 
-# Send a mail to given email id when errors found in log
+  # Send a mail to given email id when errors found in log
 
-SUBJECT="WARNING: Errors found in log on "`date --date='yesterday' '+%b %e'`""
+  SUBJECT="SUBJECT: Advertencia: Errores encontrados en el registro del sistema del día: $(date --date='yesterday' '+%b %e')"
+  TO="TO:alejandro"
 
-# This is a temp file, which is created to store the email message.
+  {
+    echo "$SUBJECT"
+    echo "$TO"
+  } >> "$MESSAGE"
 
-MESSAGE="/tmp/logs.txt"
+  {
+    echo "ATENCION: Errores registrados en /var/log/syslog.1"
+    echo  "Hostname: $(hostname)"
+    echo -e "\n"
+    echo "+------------------------------------------------------------------------------------+"
+    echo "|             Mensajes de error en el archivo de registro a continuacion             |"
+    echo "+------------------------------------------------------------------------------------+"
+    grep -i "$(date --date='yesterday' '+%b %e')" /var/log/syslog.1 | awk '{ $3=""; print}' | grep -Ewi 'warning|error|critical'
+  } >> "$MESSAGE"
 
-TO="daygeek@gmail.com"
-
-echo "ATTENTION: Errors are found in /var/log/messages. Please Check with Linux admin." >> $MESSAGE
-
-echo  "Hostname: `hostname`" >> $MESSAGE
-
-echo -e "\n" >> $MESSAGE
-
-echo "+------------------------------------------------------------------------------------+" >> $MESSAGE
-
-echo "Error messages in the log file as below" >> $MESSAGE
-
-echo "+------------------------------------------------------------------------------------+" >> $MESSAGE
-
-grep -i "`date --date='yesterday' '+%b %e'`" /var/log/messages | awk '{ $3=""; print}' | egrep -wi 'warning|error|critical' >>  $MESSAGE
-
-mail -s "$SUBJECT" "$TO" < $MESSAGE
-
-#rm $MESSAGE
-
+  sendmail -t -F "$me"  < "$MESSAGE"
 fi
