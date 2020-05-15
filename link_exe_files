@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -o errexit          # -e  Exit on most errors (see man bash)
+set -o nounset          # -u  Disallow expansion of unset variables
+# set -o xtrace         # -x  Enable only for debug // bash -xv script.sh // set -x/-x  start/stop debugging from/to here
+# set -o verbose        # -v  Enable only for debug
+set -o pipefail         # -p  Use last non-zero exit code in a pipeline
+set -o errtrace         # -E  Make sure any error trap is inherited
+
+for file in `find . -maxdepth 1 -perm -111 -type f | cut -c 3-`; do ln --no-dereference --force --symbolic "$(pwd)/$file" "$HOME/.Scripts/$file"; done
