@@ -1,4 +1,12 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -o errexit          # -e  Exit on most errors (see man bash)
+set -o nounset          # -u  Disallow expansion of unset variables
+# set -o xtrace         # -x  Enable only for debug // bash -xv script.sh // set -x/-x  start/stop debugging from/to here
+# set -o verbose        # -v  Enable only for debug
+set -o pipefail         # -p  Use last non-zero exit code in a pipeline
+set -o errtrace         # -E  Make sure any error trap is inherited
+
+
 # https://www.2daygeek.com/linux-bash-script-to-monitor-messages-log-warning-error-critical-send-email/
 # crontab -e
 # 0 7 * * * /bin/bash /opt/scripts/os-log-alert.sh
