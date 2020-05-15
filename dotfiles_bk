@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+set -o errexit          # -e  Exit on most errors (see man bash)
+set -o nounset          # -u  Disallow expansion of unset variables
+# set -o xtrace         # -x  Enable only for debug // bash -xv script.sh // set -x/-x  start/stop debugging from/to here
+# set -o verbose        # -v  Enable only for debug
+set -o pipefail         # -p  Use last non-zero exit code in a pipeline
+set -o errtrace         # -E  Make sure any error trap is inherited
+
+echoerr() { printf "%s\n" "$*" >&2 ; }
+info()    { echoerr "[INFO]    $*" ; }    # use ex:  info "... cleaned up"
+warning() { echoerr "[WARNING] $*" ; }
+error()   { echoerr "[ERROR]   $*" ; }
+fatal()   { echoerr "[FATAL]   $*" ; exit 1 ; }
+
+BAK_IFS=$IFS        # Internal field separator
+
+[[ "$(whoami)" = "root" ]] && error "No this time you really can't be root ; )" && exit 1		# No ejecutar con permisos de root
+
+proyect_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+readonly proyect_dir
+
+IFS=,
+
+lista=".bash_aliases,.bash_functions,.bash_profile,.bashrc,.bashrc_cygwin,.custom_prompt.sh,.darrc,.git-completion.sh,.gitconfig,.inputrc,.nanorc,.profile,.Xdefaults"
+
+backup_dir="$HOME/backup_dotfiles"
+
+if [[ ! -e "${backup_dir}" ]]; then
+    mkdir "${backup_dir}"
+elif [[ ! -d "${backup_dir}" ]]; then
+    fatal "   ${backup_dir} already exists but is not a directory" 1>&2
+    exit 1
+fi
+
+tmp_dir=$(mktemp -d -t ci-"$(date +%Y-%m-%d-%H-%M-%S)"-XXXXXXXXXX)
+
+# check if tmp dir was created
+if [[ ! "$tmp_dir" || ! -d "$tmp_dir" ]]; then
+  fatal "   Could not create temp dir"
+  exit 1
+fi
+
+for file in $lista;
+  do
+    if [[ -f "$HOME/"$file ]]; then
+      cp "$HOME/"$file "$tmp_dir"
+    else
+      warning "... $file no existe en $HOME"
+    fi
+  done
+
+tarfile=$backup_dir/dotfiles_$(date +%Y%m%d%H%M%S).tar.gz
+
+info "   comprimiendo archivos"
+tar -czvf "$tarfile" -C "$tmp_dir" .
+
+info "   cleaning up backup"
+
+rm -rf "$tmp_dir"
+IFS=$BAK_IFS
