@@ -6,28 +6,46 @@ set -o nounset          # -u  Disallow expansion of unset variables
 set -o pipefail         # -p  Use last non-zero exit code in a pipeline
 set -o errtrace         # -E  Make sure any error trap is inherited
 
+# Original script from:
 # https://www.2daygeek.com/linux-bash-script-to-monitor-memory-utilization-usage-and-send-email/
+
+# To automate this. It will run every 5 minutes.
 # crontab -e
 # */5 * * * * /bin/bash /opt/scripts/memory-alert.sh
 
+me="$(basename "$(test -L "$0" && readlink "$0" || echo "$0")")"    # Saca solo el nombre del script
+
 ramusage=$(free | awk '/Mem/{printf("RAM Usage: %.2f\n"), $3/$2*100}'| awk '{print $3}')
 
-if [ "$ramusage" > 20 ]; then
-SUBJECT="ATTENTION: Memory Utilization is High on $(hostname) at $(date)"
-MESSAGE="/tmp/Mail.out"
-TO="daygeek@gmail.com"
+#if [[ (( "$ramusage" -gt 75 )) ]]; then
 
-  echo "Memory Current Usage is: $ramusage%" >> $MESSAGE
-  echo "" >> $MESSAGE
-  echo "------------------------------------------------------------------" >> $MESSAGE
-  echo "Top Memory Consuming Process Using top command" >> $MESSAGE
-  echo "------------------------------------------------------------------" >> $MESSAGE
-  echo "$(top -b -o +%MEM | head -n 20)" >> $MESSAGE
-  echo "" >> $MESSAGE
-  echo "------------------------------------------------------------------" >> $MESSAGE
-  echo "Top Memory Consuming Process Using ps command" >> $MESSAGE
-  echo "------------------------------------------------------------------" >> $MESSAGE
-  echo "$(ps -eo pid,ppid,%mem,%cpu,cmd --sort=-%mem | head)" >> $MESSAGE
-  mail -s "$SUBJECT" "$TO" < $MESSAGE
-  rm /tmp/Mail.out
-  fi
+if (( $(echo "$ramusage > 75" | bc -l) )); then
+
+  # This is a temp file, which is created to store the email message.
+  trap 'rm -f "$MESSAGE"' EXIT
+  MESSAGE=$(mktemp -t ci-"$(date +%Y-%m-%d-%H-%M-%S)"-XXXXXXXXXX)
+
+  SUBJECT="SUBJECT: Atencion: Hay un uso elevado de la memoria en $(hostname) at $(date)"
+  TO="TO:alejandro"
+
+  {
+    echo "$SUBJECT"
+    echo "$TO"
+  } >> "$MESSAGE"
+
+  {
+    echo "Memoria en uso: $ramusage%"
+    echo -e "\n"
+    echo "------------------------------------------------------------------"
+    echo "Top de procesos que consumen memoria, usando comando top"
+    echo "------------------------------------------------------------------"
+    top -b -o +%MEM | head -n 20
+    echo -e "\n"
+    echo "------------------------------------------------------------------"
+    echo "Top de procesos que consumen memoria, usando comando ps"
+    echo "------------------------------------------------------------------"
+    ps -eo pid,ppid,%mem,%cpu,cmd --sort=-%mem | head
+  } >> "$MESSAGE"
+
+  sendmail -t -F "$me"  < "$MESSAGE"
+fi
