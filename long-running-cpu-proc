@@ -6,16 +6,28 @@ set -o nounset          # -u  Disallow expansion of unset variables
 set -o pipefail         # -p  Use last non-zero exit code in a pipeline
 set -o errtrace         # -E  Make sure any error trap is inherited
 
+# Original script from:
 # https://www.2daygeek.com/bash-script-to-check-how-long-the-high-cpu-memory-consumption-processes-runs-on-linux/
-ps -eo pid,user,ppid,%mem,%cpu,cmd --sort=-%cpu | head | tail -n +2 | awk '{print $1}' > /tmp/long-running-processes.txt
+
+trap 'rm -f "$TmpFile"' EXIT
+TmpFile=$(mktemp -t ci-"$(date +%Y-%m-%d-%H-%M-%S)"-XXXXXXXXXX)
+TiempoEnMarcha=$(uptime -p)
+
+ps -eo pid,user,ppid,%mem,%cpu,cmd --sort=-%cpu,-time | head | tail -n +2 | awk '{print $1}' > "$TmpFile"
+
+echo "--------------------------------------------------"
+echo "     $(hostname) @ $(date +'%a %d %B - %H:%M')"
+echo "         $TiempoEnMarcha"
 echo "--------------------------------------------------"
 echo "UName     PID  CMD            Process_Running_Time"
 echo "--------------------------------------------------"
-for userid in `cat /tmp/long-running-processes.txt`
+
+while IFS= read -r userid
 do
-username=$(ps -u -p $userid | tail -1 | awk '{print $1}')
-pruntime=$(ps -p $userid -o etime | tail -1)
-ocmd=$(ps -p $userid | tail -1 | awk '{print $4}')
-echo "$username $userid $ocmd $pruntime"
-done | column -t
+  username=$(ps -u -p "$userid" | tail -1 | awk '{print $1}')
+  pruntime=$(ps -p "$userid" -o etime | tail -1)
+  ocmd=$(ps -p "$userid" | tail -1 | awk '{print $4}')
+  echo "$username $userid $ocmd $pruntime"
+done < "$TmpFile" | column -t
 echo "--------------------------------------------------"
+
